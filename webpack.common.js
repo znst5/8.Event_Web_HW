@@ -52,7 +52,7 @@ module.exports = {
             filename: './index.html',
         }),
         new webpack.DefinePlugin({
-            AMVERA_BACKEND_URL: JSON.stringify('https://amvera.tech'),
+            AMVERA_BACKEND_URL: JSON.stringify('https://chat-backend-znst5.msk1.amvera.tech'),
             AMVERA_WS_URL: JSON.stringify('wss://chat-backend-znst5.msk1.amvera.tech'),
       }),
     ],
