@@ -52,8 +52,8 @@ module.exports = {
             filename: './index.html',
         }),
         new webpack.DefinePlugin({
-            'process.env.API_URL': JSON.stringify(isProduction ? AMVERA_BACKEND_URL : ''),
-            'process.env.WS_URL': JSON.stringify(isProduction ? AMVERA_WS_URL : 'ws://localhost:3000'),
+            AMVERA_BACKEND_URL: JSON.stringify('https://amvera.tech'),
+            AMVERA_WS_URL: JSON.stringify('wss://chat-backend-znst5.msk1.amvera.tech'),
       }),
     ],
     resolve: {
