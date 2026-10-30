@@ -1,1 +1,1 @@
-![CI](https://github.com/znst5/8.Event_Web_HW/actions/workflows/deploy.yml/badge.svg)
+![CI](https://github.com/znst5/8.Event_Web_HW/actions/workflows/deploy.yml/badge.svg) .
