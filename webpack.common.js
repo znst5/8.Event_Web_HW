@@ -4,8 +4,8 @@ const HtmlWebPackPlugin = require('html-webpack-plugin');
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const AMVERA_BACKEND_URL = 'https://amvera.ru';
-const AMVERA_WS_URL = 'wss://run-chat-backend.amvera.ru';
+const AMVERA_BACKEND_URL = 'https://amvera.tech';
+const AMVERA_WS_URL = 'wss://chat-backend-znst5.msk1.amvera.tech';
 
 module.exports = {
     entry: './src/index.js',
