@@ -1,5 +1,5 @@
 const createRequest = async (options) => {
-    const baseUrl = process.env.API_URL || '';
+    const baseUrl = AMVERA_BACKEND_URL;
     const { url, method = 'GET', data } = options;
 
     const config = {
@@ -7,7 +7,8 @@ const createRequest = async (options) => {
         headers: {},
     };
 
-    let finalUrl = `${baseUrl}${url}`;
+    const cleanUrl = url.startsWith('./') ? url.slice(1) : url;
+    let finalUrl = `${baseUrl}${cleanUrl}`;
 
     if (method === "GET" && data) {
         const params = new URLSearchParams(data).toString();
