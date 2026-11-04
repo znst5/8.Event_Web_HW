@@ -7,8 +7,13 @@ const createRequest = async (options) => {
         headers: {},
     };
 
-    const cleanUrl = url.startsWith('./') ? url.slice(1) : url;
-    let finalUrl = `${baseUrl}${cleanUrl}`;
+    const sanitizeBase = baseUrl.endsWith('/') ? baseUrl.slace(0, -1) : baseUrl;
+    let cleanUrl = url.startsWith('./') ? url.slice(1) : url;
+    if (!cleanUrl.startsWith('/')) {
+        cleanUrl = '/' + cleanUrl;
+    }
+
+    let finalUrl = `${sanitizeBase}${cleanUrl}`;
 
     if (method === "GET" && data) {
         const params = new URLSearchParams(data).toString();

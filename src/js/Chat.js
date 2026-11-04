@@ -3,7 +3,7 @@ import ChatAPI from "./api/ChatAPI.js";
 export default class Chat {
     constructor(container) {
         this.container = container;
-        this.api = new ChatAPI();
+        this.api = null;
         this.websocket = null;
         this.currentUser = null;
     }
@@ -30,22 +30,22 @@ export default class Chat {
                 </form>
               </div>
               <div class="modal__footer">
-                <button class="modal__ok" type="button">OK</button>
+                <button class="modal__ok" type="submit">OK</button>
               </div>
             </div>
           </div>
           <div class="container">
             <h1 class="chat__header">Анонимный Чат</h1>
-            <div class="chat__container" style="display: flex; flex-direction: row; width: 90%; height: 550px; margin: 0 auto; border: 1px solid #e2e5e9; border-radius: 8px; box-shadow: 0 1px 3 px rgba(0,0,0,0.12);">
-              <div class="chat_area" style="flex: 0 0 70%; display: flex; flex-direction: column; height: 100%; box-sizing: border-box;">
-                <div class="chat__messages-container" style="display: flex; flex-direction: column; flex-grow: 1; height: 450px; overflow-y: auto; padding: 15px; box-sizing: border-box; gap: 10px;"></div>
-                <div class="chat__messages-input" style="flex: 0 0 10%; padding: 10px; box-sizing: border-box; display: flex; align-items: center;">
-                  <form class="chat__messages-form" style="margin: 0; padding: 0; width: 100%; display: flex;">
-                      <input class="form__input form__input_message" type="text" placeholder="Напишите сообщение..." style="width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #e2e5e9; border-radius: 5px;">
+            <div class="chat__container">
+              <div class="chat__userlist"></div>
+              <div class="chat__area">
+                <div class="chat__messages-container"></div>
+                <div class="chat__messages-input">
+                  <form class="chat__messages-form">
+                      <input class="form__input form__input_message" type="text" placeholder="Напишите сообщение...">
                   </form>
                 </div>
               </div>
-              <div class="chat__userlist" style="flex: 0 0 30%; background-color: #edefec; border-top-right-radius: 7px; border-bottom-right-radius: 7px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; padding-top: 15px; overflow-y: auto;"></div>
             </div>
           </div>
         </div>
@@ -59,6 +59,7 @@ export default class Chat {
         this.container.appendChild(renderedUI);
 
         this.modal = document.querySelector('.modal__form');
+        this.modalForm = document.querySelector('.modal__body .form');
         this.modalInput = document.querySelector('#username');
         this.modalHint = document.querySelector('.form__hint');
         this.modalSubmitBtn = document.querySelector('.modal__ok');
@@ -75,6 +76,13 @@ export default class Chat {
     }
 
     registerEvents() {
+        if (this.modalForm) {
+            this.modalForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.onEnterChatHandler();
+            });
+        }
+
         if (this.modalSubmitBtn) {
             this.modalSubmitBtn.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -90,13 +98,32 @@ export default class Chat {
         }
 
         window.addEventListener('beforeunload', () => {
-            if (this.websocket && this.websocket.readyState === Websocket.OPEN && this.currentUser) {
+            if (this.websocket?.readyState === WebSocket.OPEN && this.currentUser) {
                 this.websocket.send(JSON.stringify({
                     type: 'exit',
                     user: this.currentUser
                 }));
             }
         });
+    }
+
+    connectWebSocket() {
+        if (this.websocket) {
+            this.websocket.close();
+        }
+
+        this.websocket = new WebSocket(AMVERA_WS_URL);
+
+        this.websocket.addEventListener('open', () => {
+            console.log('Успешно подключились к WS чата');
+            this.toggleChatStatus(true);
+            this.websocket.send(JSON.stringify({
+                type: 'login',
+                name: this.currentUser
+            }));
+        });
+
+        this.subscribeOnEvents();
     }
 
     subscribeOnEvents() {
@@ -106,19 +133,26 @@ export default class Chat {
             console.log('WS сообщение от сервера получено:', e.data);
             const response = JSON.parse(e.data);
 
-            if (response.type === 'message' && response.data) {
-                this.renderMessage(response.data);
-            } else if (response.type === 'send' || response.message) {
-                this.renderMessage({
-                    name: response.user ? response.user.name : response.name,
-                    text: response.message || response.text,
-                    dateTime: response.dateTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                });
-            }
+            if (response.type === 'message' || response.type === 'send' || response.message) {
+                const messageName = response.data?.name || response.user?.name || response.name;
+                const messageText = response.data?.text || response.message || response.text;
 
-            if ((response.type === 'userlist' || response.users || Array.isArray(response)) && this.userListContainer) {
+                const now = new Date();
+                const defaultDateTime = `${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${now.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+                const messageTime = response.data?.dateTime || response.dateTime || defaultDateTime;
+
+                if (messageText) {
+                    this.renderMessage({
+                        name: messageName,
+                        text: messageText,
+                        dateTime: messageTime
+                    });
+                }
+            } 
+
+            if (response.type === 'userlist' || response.users || Array.isArray(response)) {
                 const users = response.users || (Array.isArray(response) ? response: response.data);
-                if (Array.isArray(users)) {
+                if (Array.isArray(users) && this.userListContainer) {
                     this.userListContainer.replaceChildren();
 
                     users.forEach(user => {
@@ -127,23 +161,43 @@ export default class Chat {
 
                         if (user.name === this.currentUser) {
                             userEl.classList.add('chat__user-me');
-                            userEl.textContent = 'You';
-                        } else {
-                            userEl.textContent = user.name;
-                        }
+                        } 
+
+                        userEl.textContent = user.name;
+
                         this.userListContainer.appendChild(userEl);
                     }); 
                 }
             }
         });
 
-        this.websocket.addEventListener('close', () => {
-            console.log('Соединение с сервером закрыто');
+        this.websocket.addEventListener('close', (e) => {
+            console.log('Соединение с сервером закрыто', e.reason);
+            this.toggleChatStatus(false);
+
+            if (this.currentUser) {
+                console.log('Попытка переподключения через 3 секунды...');
+                setTimeout(() => this.connectWebSocket(), 3000);
+            }
         });
 
         this.websocket.addEventListener('error', (err) => {
             console.error('Ошибка WebSocket:', err);
+            this.toggleChatStatus(false);
         });
+    }
+
+    toggleChatStatus(isOnline) {
+        if (!this.messageInput) return;
+        if (isOnline) {
+            this.messageInput.disabled = false;
+            this.messageInput.placeholder = 'Напишите сообщение...';
+            this.messageInput.style.backgroundColor = '';
+        } else {
+            this.messageInput.disabled = true;
+            this.messageInput.placeholder = 'Соединение разорвано. Пытаемся восстановить связь...';
+            this.messageInput.style.backgroundColor = '#f5f5f5';
+        }
     }
 
     async onEnterChatHandler() {
@@ -165,17 +219,7 @@ export default class Chat {
             this.currentUser = name;
             this.modal.classList.remove('active');
 
-            this.websocket = new WebSocket(process.env.WS_URL);
-
-            this.websocket.addEventListener('open', () => {
-                console.log('Успешно подключились к WS чата');
-                this.websocket.send(JSON.stringify({
-                    type: 'login',
-                    name: this.currentUser
-                }));
-            });
-
-            this.subscribeOnEvents();
+            this.connectWebSocket();
         } catch (error) {
             this.modalHint.textContent = error.message || 'Не удалось подключиться к серверу.';
             console.error('Ошибка входа в чат:', error);
@@ -186,8 +230,15 @@ export default class Chat {
         const text = this.messageInput.value.trim();
         if (!text) return;
 
-        const dateTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+            console.warn('Не удалось отправить сообщение: нет соединения с сервером.');
+            return;
+        }
 
+        const now = new Date();
+        const dateStr = now.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateTimeStr = `${timeStr} ${dateStr}`;
 
         const messageData = {
             type: 'message',
@@ -199,64 +250,36 @@ export default class Chat {
             dateTime: dateTimeStr
         };
 
-        this.renderMessage({
-            name: this.currentUser,
-            text: text,
-            dateTime: dateTimeStr
-        });
-
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(JSON.stringify(messageData));
-        }
-
+        this.websocket.send(JSON.stringify(messageData));
         this.messageInput.value = '';
     }
 
-    renderMessage(message) {
-        const { name, text, dateTime } = message;
+    renderMessage(data) {
+        if (!this.messagesContainer) return;
 
         const messageEl = document.createElement('div');
         messageEl.classList.add('message__container');
 
-        messageEl.style.display = 'flex';
-        messageEl.style.flexDirection = 'column';
-        messageEl.style.width = 'fit-content';
-        messageEl.style.maxWidth = '70%';
-        messageEl.style.marginBottom = '10px';
+        let displayName = data.name;
 
-        const isMe = name === this.currentUser;
-
-        if (isMe) {
+        if (data.name === this.currentUser) {
             messageEl.classList.add('message__container-yourself');
-            messageEl.style.marginLeft = 'auto';
+            displayName = 'You';
         } else {
             messageEl.classList.add('message__container-interlocutor');
-            messageEl.style.marginRight = 'auto';
         }
 
         const headerEl = document.createElement('div');
         headerEl.classList.add('message__header');
-        headerEl.style.fontSize = '14px';
-
-        const senderSpan = document.createElement('span');
-        senderSpan.classList.add('message__sender');
-        senderSpan.textContent = isMe ? 'You' : name;
-        if (isMe) senderSpan.style.color = '#20b1df';
-
-        const timeSpan = document.createElement('span');
-        timeSpan.classList.add('message__time');
-        timeSpan.textContent = `, ${dateTime || ''}`;
-
-        headerEl.appendChild(senderSpan);
-        headerEl.appendChild(timeSpan);
+        headerEl.textContent = `${displayName}, ${data.dateTime}`;
 
         const textEl = document.createElement('div');
         textEl.classList.add('message__text');
-        textEl.style.wordBreak = 'break-word';
-        textEl.textContent = text;
+        textEl.textContent = data.text;
 
         messageEl.appendChild(headerEl);
         messageEl.appendChild(textEl);
+
         this.messagesContainer.appendChild(messageEl);
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
